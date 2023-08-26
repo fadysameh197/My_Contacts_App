@@ -1,6 +1,8 @@
 package com.fady.mycontactsapp;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -26,6 +28,8 @@ import com.fady.mycontactsapp.db.entity.Contact;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     final private ArrayList<Contact> contactArrayList = new ArrayList<>();
@@ -49,15 +53,15 @@ public class MainActivity extends AppCompatActivity {
         // RecyclerVIew
         RecyclerView recyclerView = findViewById(R.id.recycler_view_contacts);
         //Database
-        contactsDatabase = Room.databaseBuilder(getApplicationContext()
-                        , ContactsDatabase.class
-                        , "contactDB").allowMainThreadQueries()
-                .build();
+        contactsDatabase = Room.databaseBuilder(getApplicationContext(), ContactsDatabase.class, "contactDB").allowMainThreadQueries().build();
         // Contacts List
-        contactArrayList.addAll(contactsDatabase.getContactDao().getContacts());
-
+        displayAllContactsInBackground();
         contactsAdapter = new ContactsAdapter(this, contactArrayList, MainActivity.this);
-
+        if (contactArrayList.size() == 0) {
+            img_no_contacts.setImageResource(R.drawable.no_contacts);
+        } else {
+            img_no_contacts.setImageResource(0);
+        }
         RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
         recyclerView.setLayoutManager(layoutManager);
         recyclerView.setItemAnimator(new DefaultItemAnimator());
@@ -65,6 +69,26 @@ public class MainActivity extends AppCompatActivity {
 
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(view -> addAndEditContacts(false, null, -1));
+    }
+
+    private void displayAllContactsInBackground() {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+        executor.execute(() -> {
+            //background work
+            contactArrayList.addAll(contactsDatabase.getContactDao().getContacts());
+            //after background work finish
+            handler.post(() -> {
+
+                contactsAdapter.notifyDataSetChanged();
+                if (contactArrayList.size() == 0) {
+                    img_no_contacts.setImageResource(R.drawable.no_contacts);
+                } else {
+                    img_no_contacts.setImageResource(0);
+                }
+            });
+        });
+
     }
 
     public void addAndEditContacts(final boolean isUpdated, final Contact contact, final int position) {
@@ -87,19 +111,15 @@ public class MainActivity extends AppCompatActivity {
             contactEmail.setText(contact.getEmail());
         }
 
-        alertDialogBuilder.setCancelable(false)
-                .setPositiveButton(isUpdated ? "Update" : "Save", (dialogInterface, i) -> {
+        alertDialogBuilder.setCancelable(false).setPositiveButton(isUpdated ? "Update" : "Save", (dialogInterface, i) -> {
 
-                })
-                .setNegativeButton("Delete",
-                        (dialogInterface, i) -> {
-                            if (isUpdated) {
-                                DeleteContact(contact, position);
-                            } else {
-                                dialogInterface.cancel();
-                            }
-                        }
-                );
+        }).setNegativeButton("Delete", (dialogInterface, i) -> {
+            if (isUpdated) {
+                DeleteContact(contact, position);
+            } else {
+                dialogInterface.cancel();
+            }
+        });
 
         final AlertDialog alertDialog = alertDialogBuilder.create();
         alertDialog.show();
@@ -122,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
         });
-     img_no_contacts.setImageResource(0);
+        img_no_contacts.setImageResource(0);
     }
 
     private void DeleteContact(Contact contact, int position) {
@@ -131,9 +151,9 @@ public class MainActivity extends AppCompatActivity {
         contactsDatabase.getContactDao().deleteContact(contact);
 
         contactsAdapter.notifyDataSetChanged();
-        if(contactArrayList.size()==0){
+        if (contactArrayList.size() == 0) {
             img_no_contacts.setImageResource(R.drawable.no_contacts);
-        }else{
+        } else {
             img_no_contacts.setImageResource(0);
         }
 
